@@ -13,11 +13,23 @@ if __name__ == "__main__":
     # options.add_argument('--headless')
 
     driver = webdriver.Chrome(chrome_options=options)
-    paths = []
 
+    listing_page_url = "https://www.nieruchomosci-online.pl/szukaj.html?3,mieszkanie,sprzedaz,,Kraków:5600"
+    file_name = "nieruchomosci_online_krakow.csv"
+    driver.get(listing_page_url)
+    source_code = driver.page_source
+    bs = BeautifulSoup(source_code, "html.parser")
+
+    # take number of listing pages regarding specified city (first listing page)
+    pagination_wrapper = bs.find("div", attrs={"id": "pagination-outer"})
+    pagination_list = pagination_wrapper.find("ul", attrs={"class": "pagination-mob-sub"})
+    pagination_list_element = pagination_list.contents[-2]
+    list_site_max_number = int(pagination_list_element.text)
+
+    paths = []
     # Take ad urls from the listing page
-    for i in range(5):
-        driver.get(f"https://warszawa.nieruchomosci-online.pl/mieszkania/?p={i}")
+    for i in range(1, list_site_max_number + 1):
+        driver.get(f"{listing_page_url}?p={i}")
         source_code = driver.page_source
         bs = BeautifulSoup(source_code, "html.parser")
 
@@ -124,4 +136,4 @@ if __name__ == "__main__":
 
     df = pd.DataFrame(result_list)
     df.replace(";", ",", inplace=True, regex=True)
-    df.to_csv("nieruchomosci_online.csv", index=False, sep="\t")
+    df.to_csv(file_name, index=False, sep="\t")
