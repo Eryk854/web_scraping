@@ -1,0 +1,4 @@
+geocoding:
+  geocoding_url: "https://api.geoapify.com/v1/geocode/search"
+  acceptable_cities: [Warszawa, Gdansk, Krakow, Wroclaw]
+  street_prefixes: ["ul.", "al."]
