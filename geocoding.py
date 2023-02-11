@@ -24,15 +24,9 @@ def geocode(address: str, api_key: str, country: str) -> Tuple[Optional[str], ..
 
     latitude, longitude, formatted_address, result_confidence = None, None, None, None
     if None not in params.values():
-        geocode_place = get_geocode_response(params, headers)
-        latitude = geocode_place.get("lat", None)
-        longitude = geocode_place.get("lon", None)
-        formatted_address = geocode_place.get("formatted", None)
-        rank = geocode_place.get("rank", None)
-        result_confidence = rank.get("confidence", None)
+        latitude, longitude, formatted_address, result_confidence = get_geocode_response(params, headers)
     else:
         print(f"Cannot get geocoded information about this address: {address}")
-
     return latitude, longitude, formatted_address, result_confidence
 
 
@@ -45,12 +39,32 @@ def geocode_otodom(dataframe: pd.DataFrame, api_key: str, country: str = "Poland
     return dataframe
 
 
-def get_geocode_response(params: dict, headers: dict) -> Dict:
+def geocode_nieruchomosci(dataframe: pd.DataFrame, api_key: str, country: str = "Poland") -> pd.DataFrame:
+    street = dataframe["Adres"].split(",")[0]
+    params = {"country": country, "apiKey": api_key, "city": dataframe["Miasto"], "street": street}
+    headers = {"Accept": "application/json"}
+    lat, lon, new_address, confidence = get_geocode_response(params, headers)
+    dataframe["latitude"] = lat
+    dataframe["longitude"] = lon
+    dataframe["formatted_address"] = new_address
+    dataframe["result_confidence"] = confidence
+    return dataframe
+
+
+def get_geocode_response(params: dict, headers: dict) -> Tuple[Optional[str], ...]:
     url = read_config_value("geocoding")["geocoding_url"]
     resp = requests.get(url, params=params, headers=headers)
     resp_content = resp.json()
     full_response = resp_content["features"][0]
-    return full_response["properties"]
+    geocode_place = full_response["properties"]
+
+    latitude = geocode_place.get("lat", None)
+    longitude = geocode_place.get("lon", None)
+    formatted_address = geocode_place.get("formatted", None)
+    rank = geocode_place.get("rank", None)
+    result_confidence = rank.get("confidence", None)
+
+    return latitude, longitude, formatted_address, result_confidence
 
 
 def get_address_values(address: str) -> Tuple[str, str]:
@@ -73,8 +87,9 @@ def get_address_values(address: str) -> Tuple[str, str]:
 
 if __name__ == "__main__":
     API_KEY = os.getenv("API_KEY")
+    # file_path = "nieruchomosci/nieruchomosci_online_gdansk1.csv"
     file_path = "otodom/otodom.csv"
     df = pd.read_csv(file_path, sep="\t")
-    df = df.iloc[2700:2800, :]
+    df = df.iloc[:20, :]
     df = df.apply(geocode_otodom, api_key=API_KEY, axis=1)
     print(df.head())
