@@ -1,5 +1,5 @@
 import os
-from typing import Dict, Tuple, Optional
+from typing import Dict
 
 import pandas as pd
 import requests
@@ -12,84 +12,107 @@ load_dotenv()
 
 def prepare_request_parmas(address: str, api_key: str, country: str) -> Dict:
     params = {"country": country, "apiKey": api_key}
-    city, street = get_address_values(address)
-    params["city"] = city
-    params["street"] = street
+    address_values = get_address_values(address)
+    params.update(address_values)
     return params
 
 
-def geocode(address: str, api_key: str, country: str) -> Tuple[Optional[str], ...]:
+def geocode(address: str, api_key: str, country: str) -> dict:
     params = prepare_request_parmas(address, api_key, country)
     headers = {"Accept": "application/json"}
 
-    latitude, longitude, formatted_address, result_confidence = None, None, None, None
+    print(address)
     if None not in params.values():
-        latitude, longitude, formatted_address, result_confidence = get_geocode_response(params, headers)
-    else:
-        print(f"Cannot get geocoded information about this address: {address}")
-    return latitude, longitude, formatted_address, result_confidence
+        return get_geocode_response(params, headers)
+    return {}
 
 
-def geocode_otodom(dataframe: pd.DataFrame, api_key: str, country: str = "Poland") -> pd.DataFrame:
-    lat, lon, new_address, confidence = geocode(dataframe["Adres"], api_key, country)
-    dataframe["latitude"] = lat
-    dataframe["longitude"] = lon
-    dataframe["formatted_address"] = new_address
-    dataframe["result_confidence"] = confidence
-    return dataframe
+def geocode_otodom(row: pd.Series, api_key: str, country: str = "Poland") -> pd.Series:
+    geocoded_values = geocode(row["Adres"], api_key, country)
+    geocoded_values = pd.Series(geocoded_values)
+    result = pd.concat([row, geocoded_values])
+    return result
 
 
-def geocode_nieruchomosci(dataframe: pd.DataFrame, api_key: str, country: str = "Poland") -> pd.DataFrame:
-    street = dataframe["Adres"].split(",")[0]
-    params = {"country": country, "apiKey": api_key, "city": dataframe["Miasto"], "street": street}
+def geocode_nieruchomosci(row: pd.Series, api_key: str, country: str = "Poland") -> pd.Series:
+    print(row["Adres"])
+    street = row["Adres"].split(",")[0]
+    params = {"country": country, "apiKey": api_key, "city": row["Miasto"], "street": street}
     headers = {"Accept": "application/json"}
-    lat, lon, new_address, confidence = get_geocode_response(params, headers)
-    dataframe["latitude"] = lat
-    dataframe["longitude"] = lon
-    dataframe["formatted_address"] = new_address
-    dataframe["result_confidence"] = confidence
-    return dataframe
+
+    geocoded_values = get_geocode_response(params, headers)
+    geocoded_values = pd.Series(geocoded_values)
+    result = pd.concat([row, geocoded_values])
+    return result
 
 
-def get_geocode_response(params: dict, headers: dict) -> Tuple[Optional[str], ...]:
+def get_geocode_response(params: dict, headers: dict) -> dict:
     url = read_config_value("geocoding")["geocoding_url"]
     resp = requests.get(url, params=params, headers=headers)
-    resp_content = resp.json()
-    full_response = resp_content["features"][0]
-    geocode_place = full_response["properties"]
+    geocoded_response = {}
+    geocode_place = {}
+    rank = {}
+    if resp.status_code == 200:
+        resp_content = resp.json()
+        if resp_content["features"]:
+            full_response = resp_content["features"][0]
+            geocode_place = full_response["properties"]
+            rank = geocode_place.get("rank", None)
 
-    latitude = geocode_place.get("lat", None)
-    longitude = geocode_place.get("lon", None)
-    formatted_address = geocode_place.get("formatted", None)
-    rank = geocode_place.get("rank", None)
-    result_confidence = rank.get("confidence", None)
+    geocoded_response["latitude"] = geocode_place.get("lat", None)
+    geocoded_response["longitude"] = geocode_place.get("lon", None)
+    geocoded_response["formatted_address"] = geocode_place.get("formatted", None)
+    geocoded_response["result_confidence"] = rank.get("confidence", None)
+    geocoded_response["suburb"] = geocode_place.get("suburb", None)
+    geocoded_response["building_category"] = geocode_place.get("category", None)
+    geocoded_response["result_type"] = geocode_place.get("result_type", None)
 
-    return latitude, longitude, formatted_address, result_confidence
+    return geocoded_response
 
 
-def get_address_values(address: str) -> Tuple[str, str]:
+def get_address_values(address: str) -> dict:
     address_elements = address.split(",")
 
     geocoding_config = read_config_value("geocoding")
     acceptable_cities = geocoding_config["acceptable_cities"]
     street_prefixes = geocoding_config["street_prefixes"]
 
-    city, street = None, None
+    address_values = {}
     for address_element in address_elements:
         address_element = address_element.strip()
+        address_element = address_element.lower()
         if any(city in address_element for city in acceptable_cities):
-            city = address_element
+            address_values["city"] = address_element
         for street_prefix in street_prefixes:
             if street_prefix in address_element:
-                street = address_element.lstrip(street_prefix)
-    return city, street
+                address_values["street"] = address_element.lstrip(street_prefix)
+
+    if "city" in address_values and "street" in address_values:
+        return address_values
+
+    address_values = {}
+    for address_element in address_elements:
+        address_element = address_element.strip()
+        address_element = address_element.lower()
+        if any(city in address_element for city in acceptable_cities):
+            address_values["city"] = address_element
+        else:
+            address_values["state"] = address_element
+    return address_values
 
 
 if __name__ == "__main__":
     API_KEY = os.getenv("API_KEY")
-    # file_path = "nieruchomosci/nieruchomosci_online_gdansk1.csv"
-    file_path = "otodom/otodom.csv"
+    file_path = "nieruchomosci/nieruchomosci_online_with_price.csv"
+    # file_path = "otodom/otodom.csv"
     df = pd.read_csv(file_path, sep="\t")
-    df = df.iloc[:20, :]
-    df = df.apply(geocode_otodom, api_key=API_KEY, axis=1)
-    print(df.head())
+    df = df.iloc[:100, :]
+    # df = df.apply(geocode_otodom, api_key=API_KEY, axis=1)
+    df = df.apply(geocode_nieruchomosci, api_key=API_KEY, axis=1)
+    df.to_csv("nieruchomosci/geocoded/geocoded1.csv", index=False, sep="\t")
+
+    # address = "Pradnik Bialy, Krakow, Krakow "
+    # params = prepare_request_parmas(address, API_KEY, "Poland")
+    # headers = {"Accept": "application/json"}
+    # get_geocode_response(params, headers)
+

@@ -1,4 +1,20 @@
 geocoding:
   geocoding_url: "https://api.geoapify.com/v1/geocode/search"
-  acceptable_cities: [Warszawa, Gdansk, Krakow, Wroclaw]
-  street_prefixes: ["ul.", "al."]
+  acceptable_cities: [warszawa, gdansk, krakow, wroclaw]
+  street_prefixes: [
+    "ul.",
+    "al.",
+    "os.",
+    "gen.",
+    "prof.",
+    "prezydenta",
+    "osiedle",
+    "aleja",
+    "pl.",
+    "ulica",
+    "os",
+    "plk.",
+    "generala",
+    "ksiedza",
+    "marszalka"
+  ]

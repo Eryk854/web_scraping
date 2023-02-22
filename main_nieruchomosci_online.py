@@ -15,9 +15,11 @@ if __name__ == "__main__":
     driver = webdriver.Chrome(chrome_options=options)
 
     # take number of listing pages regarding specified city (first listing page)
-    city = "Gdansk"
-    listing_page_url = "https://gdansk.nieruchomosci-online.pl"
-    file_name = "nieruchomosci/nieruchomosci_online_gdansk1.csv"
+    city = "Warszawa"
+    # listing_page_url = "https://gdansk.nieruchomosci-online.pl"
+    # listing_page_url = "https://krakow.nieruchomosci-online.pl"
+    listing_page_url = "https://warszawa.nieruchomosci-online.pl"
+    file_name = "nieruchomosci/nieruchomosci_online_warszawa6.csv"
 
     driver.get(listing_page_url)
     source_code = driver.page_source
@@ -30,7 +32,7 @@ if __name__ == "__main__":
 
     # Take ad urls from the listing page
     paths = []
-    for i in range(1, 10):
+    for i in range(375, 450):
         driver.get(f"{listing_page_url}/?p={i}")
         source_code = driver.page_source
         bs = BeautifulSoup(source_code, "html.parser")
@@ -79,6 +81,7 @@ if __name__ == "__main__":
             # take full advertisement address
             address_div = bs.find("div", attrs={"id": "locationTable"})
             list_element_with_address = address_div.find("li", attrs={"class": "adress"})
+            address = None
             if list_element_with_address:
                 span_address = list_element_with_address.find("span")
                 address = unidecode(span_address.text)
